@@ -1,0 +1,8 @@
+name: ai-office-simulator
+description: A realistic office workflow simulation environment for evaluating AI agents
+tasks:
+  - easy
+  - medium
+  - hard
+version: 1.0
+author: shounak

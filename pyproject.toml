@@ -1,0 +1,20 @@
+[project]
+name = "ai-office-simulator"
+version = "0.1.0"
+description = "AI Office Simulator OpenEnv environment"
+authors = [{name = "Shounak"}]
+
+dependencies = [
+    "fastapi",
+    "uvicorn",
+    "pydantic",
+    "requests",
+    "openai",
+    "openenv-core>=0.2.0"
+]
+
+[project.scripts]
+server = "server.app:main"
+
+[tool.openenv]
+entry_point = "server.app:app" 

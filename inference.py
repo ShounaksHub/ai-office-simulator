@@ -2,27 +2,72 @@ import os
 import requests
 from openai import OpenAI
 
-API_BASE_URL = os.getenv("API_BASE_URL", "http://localhost:7860")
-MODEL_NAME = os.getenv("MODEL_NAME", "gpt-4o-mini")
-HF_TOKEN = os.getenv("HF_TOKEN", "dummy")
+# ----------- ENV VARIABLES -----------
+API_BASE_URL = os.environ["API_BASE_URL"]  
+API_KEY = os.environ["API_KEY"]
 
-client = OpenAI(base_url=API_BASE_URL, api_key=HF_TOKEN)
+MODEL_NAME = os.environ.get("MODEL_NAME", "gpt-4o-mini")
+
+# Your environment (HF Space API)
+ENV_BASE_URL = os.environ.get("ENV_BASE_URL", "http://localhost:7860")
+
+# ----------- OPENAI CLIENT -----------
+client = OpenAI(
+    base_url=API_BASE_URL,
+    api_key=API_KEY
+)
 
 BENCHMARK = "ai_office_simulator"
 MAX_STEPS = 5
 
 
+# ----------- DECISION FUNCTION -----------
 def decide_action(observation):
     emails = observation["emails"]
-    idx = max(range(len(emails)), key=lambda i: emails[i]["priority"])
+
+    email_text = "\n".join([
+        f"{i}: {e['subject']} (priority {e['priority']})"
+        for i, e in enumerate(emails)
+    ])
+
+    prompt = f"""
+You are an AI assistant.
+
+Given these emails:
+{email_text}
+
+Choose the best action:
+- reply
+- classify
+- prioritize
+
+Return ONLY in format:
+action_type,email_index
+"""
+
+    response = client.chat.completions.create(
+        model=MODEL_NAME,
+        messages=[{"role": "user", "content": prompt}],
+        max_tokens=20
+    )
+
+    output = response.choices[0].message.content.strip()
+
+    try:
+        action_type, email_index = output.split(",")
+        email_index = int(email_index)
+    except:
+        action_type = "classify"
+        email_index = 0
 
     return {
-        "action_type": "reply" if emails[idx]["priority"] >= 4 else "classify",
-        "email_index": idx,
-        "response": "Handling task"
+        "action_type": action_type,
+        "email_index": email_index,
+        "response": "Handled"
     }
 
 
+# ----------- RUN TASK -----------
 def run_task(task):
     rewards = []
     steps = 0
@@ -30,7 +75,8 @@ def run_task(task):
     print(f"[START] task={task} env={BENCHMARK} model={MODEL_NAME}", flush=True)
 
     try:
-        obs = requests.post(f"{API_BASE_URL}/reset", params={"task": task}).json()
+        # RESET ENV
+        obs = requests.post(f"{ENV_BASE_URL}/reset", params={"task": task}).json()
         done = False
 
         for step in range(1, MAX_STEPS + 1):
@@ -39,7 +85,8 @@ def run_task(task):
 
             action = decide_action(obs)
 
-            res = requests.post(f"{API_BASE_URL}/step", json=action).json()
+            # STEP ENV
+            res = requests.post(f"{ENV_BASE_URL}/step", json=action).json()
 
             obs = res["observation"]
             reward = float(res["reward"])
@@ -56,7 +103,7 @@ def run_task(task):
             if done:
                 break
 
-        # Normalize score to [0,1]
+        # ----------- SCORE NORMALIZATION -----------
         total_reward = sum(rewards)
         max_possible = MAX_STEPS * 1.0
         min_possible = MAX_STEPS * -1.0
@@ -76,6 +123,7 @@ def run_task(task):
     )
 
 
+# ----------- MAIN -----------
 if __name__ == "__main__":
     for task in ["easy", "medium", "hard"]:
         run_task(task)

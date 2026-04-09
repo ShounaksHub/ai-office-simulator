@@ -3,8 +3,8 @@ import requests
 from openai import OpenAI
 
 # ----------- ENV VARIABLES -----------
-API_BASE_URL = os.environ["API_BASE_URL"]  
-API_KEY = os.environ["API_KEY"]
+API_BASE_URL = os.environ.get("API_BASE_URL", "https://api.openai.com/v1")   # LLM Proxy (MANDATORY)
+API_KEY = os.environ.get("API_KEY", "missing_key")
 
 MODEL_NAME = os.environ.get("MODEL_NAME", "gpt-4o-mini")
 
@@ -45,18 +45,19 @@ Return ONLY in format:
 action_type,email_index
 """
 
-    response = client.chat.completions.create(
-        model=MODEL_NAME,
-        messages=[{"role": "user", "content": prompt}],
-        max_tokens=20
-    )
-
-    output = response.choices[0].message.content.strip()
-
     try:
+        response = client.chat.completions.create(
+            model=MODEL_NAME,
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=20
+        )
+
+        output = response.choices[0].message.content.strip()
+
         action_type, email_index = output.split(",")
         email_index = int(email_index)
-    except:
+    except Exception as e:
+        print(f"[decide_action warning] Error during LLM call or parsing: {e}")
         action_type = "classify"
         email_index = 0
 
